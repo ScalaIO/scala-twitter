@@ -9,6 +9,7 @@ object ScalaIOMentionToCSVMain {
 
   def main(args: Array[String]): Unit = {
     // for programmatic parameter passing
+    // WARNING!!! DO NOT COMMIT WITH THOSE VALUES PROVIDED
 //    val consumerToken = ConsumerToken(key = "key", secret = "secret")
 //    val accessToken = AccessToken(key = "key", secret = "secret")
 //    val restClient = TwitterRestClient(consumerToken, accessToken)
