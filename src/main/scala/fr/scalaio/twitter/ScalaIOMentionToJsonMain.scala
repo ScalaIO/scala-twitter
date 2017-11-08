@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits._
 import scala.concurrent.duration.Duration
 import scala.concurrent.Await
 
-object ScalaIOMentionToCSVMain extends FileSupport {
+object ScalaIOMentionToJsonMain extends FileSupport {
 
   val limitDate: LocalDateTime =
     LocalDateTime.of(2017, Month.NOVEMBER, 1, 0, 0)
