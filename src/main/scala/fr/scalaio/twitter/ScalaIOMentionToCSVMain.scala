@@ -1,42 +1,70 @@
 package fr.scalaio.twitter
 
+import java.io.PrintWriter
+import java.time.{LocalDateTime, Month, ZoneId}
+import java.util.concurrent.TimeUnit
+
 import com.danielasfregola.twitter4s.TwitterRestClient
 import com.danielasfregola.twitter4s.entities._
 
 import scala.concurrent.ExecutionContext.Implicits._
+import scala.concurrent.duration.Duration
+import scala.concurrent.Await
 
-object ScalaIOMentionToCSVMain {
+object ScalaIOMentionToCSVMain extends FileSupport {
+
+  val limitDate: LocalDateTime =
+    LocalDateTime.of(2017, Month.NOVEMBER, 1, 0, 0)
+
+  val filename = "~/tweets.json"
 
   def main(args: Array[String]): Unit = {
-    // for programmatic parameter passing
-    // WARNING!!! DO NOT COMMIT WITH THOSE VALUES PROVIDED
-//    val consumerToken = ConsumerToken(key = "key", secret = "secret")
-//    val accessToken = AccessToken(key = "key", secret = "secret")
-//    val restClient = TwitterRestClient(consumerToken, accessToken)
-    // instead of...
+    /*
+    To use this program, you have to define those environment variables
+
+export TWITTER_CONSUMER_TOKEN_KEY='my-consumer-key'
+export TWITTER_CONSUMER_TOKEN_SECRET='my-consumer-secret'
+export TWITTER_ACCESS_TOKEN_KEY='my-access-key'
+export TWITTER_ACCESS_TOKEN_SECRET='my-access-secret'
+     */
+
     val restClient: TwitterRestClient = TwitterRestClient()
 
-    val tweets = restClient.mentionsTimeline(include_entities = false)
-    for (result: RatedData[Seq[Tweet]] <- tweets) {
-      println(s"remaining: ${result.rate_limit.remaining} / ${result.rate_limit.limit} (reset = ${result.rate_limit.reset})")
-      for {
-        tweet: Tweet <- result.data
-        if displayableTweet(tweet)
-      } {
-        println(displayCsvOf(tweet))
-      }
+    val tweets = getMentions(restClient)
+
+    val printer = new PrintWriter(filename)
+
+    println(s"write to $filename")
+    tweets.foreach { tweet =>
+      println(s"write ${tweet.id}")
+      printer.println(toJson(tweet))
     }
+
+    printer.close()
+
   }
 
-  def displayCsvOf(tweet: Tweet) = {
-    def escapeText(s: String) = "\"" + s.replace("\"", "\"\"").replace("\n", "\\n") + "\""
+  def getMentions(restClient: TwitterRestClient,
+                  max_id: Option[Long] = None): Seq[Tweet] = {
+    println(s"get mentions from $max_id")
 
-    val user_info = s"""${tweet.user.map(_.id_str).getOrElse("")},${escapeText(tweet.user.map(_.screen_name).getOrElse(""))},${tweet.user.map(_.name).getOrElse("")}"""
+    val ratedData: RatedData[Seq[Tweet]] =
+      Await.result(restClient.mentionsTimeline(count = 200,
+                                               max_id = max_id,
+                                               contributor_details = true),
+                   Duration(5, TimeUnit.SECONDS))
 
-    s"""${tweet.id_str},${tweet.created_at},$user_info,${escapeText(tweet.text)},${tweet.retweet_count},${tweet.favorite_count},${tweet.lang.getOrElse("")}"""
+    println(ratedData.rate_limit)
+    val tweets = ratedData.data
+
+    if (!tweets.exists(
+          tweet =>
+            limitDate.isAfter(tweet.created_at.toInstant
+              .atZone(ZoneId.systemDefault())
+              .toLocalDateTime)))
+      tweets ++ getMentions(restClient, Some(tweets.last.id))
+    else
+      tweets
   }
-
-  def displayableTweet(tweet: Tweet) =
-    tweet.retweeted_status.isEmpty && tweet.quoted_status.isEmpty && tweet.user.isDefined
 
 }
